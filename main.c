@@ -11,17 +11,10 @@
 #define FIND_DIR "fd"
 #define FIND_FILE "ff"
 
-static void TestUtils()
-{
-	String testQuery = CreateString("Re");
-
-	FindAllDirectoriesByQuery(&testQuery);
-
-	DestroyString(&testQuery);
-}
-
 int main(int argc, char* argv[])
 {
+	SetConsoleOutputCP(CP_UTF8);
+
 	if (argc < 2)
 	{
 		printf("No command provided\nUsage: %s <command>\n", argv[0]);
@@ -40,7 +33,10 @@ int main(int argc, char* argv[])
 			query = CreateString(argv[2]);
 		}
 
-		FindAllDirectoriesByQuery(&query);
+		if (FindAllDirectoriesByQuery(&query) != M_SUCCESS)
+		{
+			printf("An error occured while searching directories\n");
+		}
 		DestroyString(&query);
 	}
 	else

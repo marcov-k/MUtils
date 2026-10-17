@@ -14,7 +14,7 @@ endif()
 project (mutils LANGUAGES C)
 
 # Add source to this project's executable.
-add_executable (mutils  "main.c" "include/m_string.h" "src/m_string.c" "include/m_math_utils.h" "src/m_math_utils.c" "include/m_result.h" "include/m_contain.h" "include/m_vector.h" "src/m_vector.c" "include/m_deref.h" "fd/find_dir.h" "ff/find_file.h" "fd/find_dir.c" "ff/find_file.c")
+add_executable (mutils  "main.c" "include/m_string.h" "src/m_string.c" "include/m_math_utils.h" "src/m_math_utils.c" "include/m_result.h" "include/m_contain.h" "include/m_vector.h" "src/m_vector.c" "include/m_deref.h" "fd/find_dir.h" "ff/find_file.h" "fd/find_dir.c" "ff/find_file.c" "utils/wide_utf8.h" "utils/wide_utf8.c")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET mutils PROPERTY CXX_STANDARD 20)

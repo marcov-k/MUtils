@@ -1,7 +1,9 @@
 #include "find_dir.h"
 
+#include "../include/m_result.h"
 #include "../include/m_string.h"
 #include "../include/m_vector.h"
+#include "../utils/wide_utf8.h"
 
 #include <direct.h>
 #include <stdio.h>
@@ -57,18 +59,20 @@ static int CopyDirectoryTo(void* dest, const void* source)
 	return M_SUCCESS;
 }
 
-static void FilterDirectories(Vector* directories, const String* query)
+static int FilterDirectories(Vector* directories, const String* query)
 {
 	for (size_t i = 0; i < directories->length; ++i)
 	{
 		const Directory* dir = VectorGetElementAt(directories, i);
+		if (dir == NULL) continue;
 
 		if (!StringContainsSubstring(&dir->name, query))
 		{
-			VectorRemoveAt(directories, i);
-			i--;
+			if (VectorRemoveAt(directories, i--) != M_SUCCESS) return M_FAILURE_GEN;
 		}
 	}
+
+	return M_SUCCESS;
 }
 
 static void PrintDirectories(const Vector* directories)
@@ -92,116 +96,209 @@ static void PrintDirectories(const Vector* directories)
 	for (size_t i = 0; i < directories->length; ++i)
 	{
 		const Directory* dir = VectorGetElementAt(directories, i);
-		PrintStringLn(&dir->path);
+		if (dir != NULL) PrintStringLn(&dir->path);
 	}
 }
 
-static Vector* FindAllDirectories(void)
+static int GetAllDirectoriesInDir(const String* path, Vector* directories)
 {
-	char* workingDir = _getcwd(NULL, 0);
-	String startPath = CreateString(workingDir);
-	free(workingDir);
+	if (path == NULL || directories == NULL) return M_FAILURE_GEN;
 
-	Directory startDirectory = CreateDirectoryWrapper(&startPath, &startPath);
-
-	Vector* directories = malloc(sizeof(Vector));
-	*directories = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
-
-	Vector searchDirs = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
-	VectorPushBack(&searchDirs, &startDirectory, ZeroDirectory, CopyDirectoryTo);
-
-	do
-	{
-		Directory* search = VectorGetElementLast(&searchDirs);
-		const String* searchPath = &search->path;
-
-		Vector* foundDirs = GetAllDirectoriesInDir(searchPath);
-		VectorPopBack(&searchDirs);
-
-		if (foundDirs->length > 0)
-		{
-			VectorInsertRangeAt(&searchDirs, searchDirs.length, foundDirs, ZeroDirectory, CopyDirectoryTo);
-			VectorInsertRangeAt(directories, directories->length, foundDirs, ZeroDirectory, CopyDirectoryTo);
-		}
-
-		DestroyVector(foundDirs);
-		free(foundDirs);
-	} while (searchDirs.length > 0);
-
-	DestroyString(&startPath);
-	DestroyDirectory(&startDirectory);
-	DestroyVector(&searchDirs);
-	return directories;
-}
-
-void FindAllDirectoriesByQuery(const String* query)
-{
-	struct timespec start, end;
-	timespec_get(&start, TIME_UTC);
-
-	printf("Finding all directories with names containing \"");
-	PrintString(query);
-	printf("\" in the current working directory...\n\n");
-
-	Vector* directories = FindAllDirectories();
-	FilterDirectories(directories, query);
-
-	PrintDirectories(directories);
-
-	DestroyVector(directories);
-	free(directories);
-
-	timespec_get(&end, TIME_UTC);
-
-	double timeSpent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-	printf("\nSearch took %f seconds\n", timeSpent);
-}
-
-Vector* GetAllDirectoriesInDir(const String* path)
-{
 	// Prepare search path to match all contents
 	String searchPath = CopyString(path);
-	StringAppendCStr(&searchPath, "\\*");
+	if (searchPath.data == NULL) return M_FAILURE_GEN;
+	if (StringAppendCStr(&searchPath, "\\*") != M_SUCCESS)
+	{
+		DestroyString(&searchPath);
+		return M_FAILURE_GEN;
+	}
 
 	// Prepare parent directory path to prepend to every found directory name
 	String parentPath = CopyString(path);
-	StringAppendCStr(&parentPath, "\\");
-
-	// Initialize vector to store paths of all directories found
-	Vector* directories = malloc(sizeof(Vector));
-	if (directories == NULL) goto CLEANUP;
-	*directories = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
+	if (parentPath.data == NULL)
+	{
+		DestroyString(&searchPath);
+		return M_FAILURE_GEN;
+	}
+	if (StringAppendCStr(&parentPath, "\\") != M_SUCCESS) goto FAILURE;
 
 	// Find first item in the directory
-	WIN32_FIND_DATA findData;
-	HANDLE hFind = FindFirstFile(searchPath.data, &findData);
-	if (hFind == INVALID_HANDLE_VALUE) goto CLEANUP;
+	WIN32_FIND_DATAW findData;
+
+	wchar_t* wideSearchPath = UTF8ToWide(searchPath.data);
+	if (wideSearchPath == NULL) goto FAILURE;
+
+	HANDLE hFind = FindFirstFileW(wideSearchPath, &findData);
+	free(wideSearchPath);
+	if (hFind == INVALID_HANDLE_VALUE)
+	{
+		DWORD error = GetLastError();
+		if (error == ERROR_ACCESS_DENIED || error == ERROR_SHARING_VIOLATION)
+		{
+			// not a fatal error - simply skip current directory
+			DestroyString(&searchPath);
+			DestroyString(&parentPath);
+			return M_SUCCESS;
+		}
+		goto FAILURE;
+	}
 
 	// Iterate through all items in the directory and store all found directories
 	do
 	{
 		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 		{
-			if (strcmp(findData.cFileName, ".") == 0 || strcmp(findData.cFileName, "..") == 0) continue;
+			if (findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
+			if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0) continue;
+
+			int status = M_SUCCESS;
+
+			char nameUtf8[MAX_PATH * 4];
+			if (WideToUTF8(findData.cFileName, nameUtf8, sizeof(nameUtf8)) != M_SUCCESS) continue;
 
 			// Create strings storing directory name and path
-			String directoryName = CreateString(findData.cFileName);
+			String directoryName = CreateString(nameUtf8);
 			String directoryPath = CopyString(&parentPath);
-			StringAppendCStr(&directoryPath, findData.cFileName);
+			if (directoryName.data == NULL || directoryPath.data == NULL) goto BREAK_SEARCH_LOOP;
+			if (StringAppendCStr(&directoryPath, nameUtf8) != M_SUCCESS) goto BREAK_SEARCH_LOOP;
 
 			// Add directory to found directories
 			Directory* directory = malloc(sizeof(Directory));
-			*directory = CreateDirectoryWrapper(&directoryName, &directoryPath);
-			VectorPushBack(directories, directory, NULL, NULL);
+			if (directory == NULL) goto BREAK_SEARCH_LOOP;
 
+			*directory = CreateDirectoryWrapper(&directoryName, &directoryPath);
+			if (VectorPushBack(directories, directory, NULL, NULL) != M_SUCCESS)
+			{
+				DestroyDirectory(directory);
+				free(directory);
+				goto BREAK_SEARCH_LOOP;
+			}
+
+			goto SEARCH_LOOP_END;
+
+		BREAK_SEARCH_LOOP:
+			status = M_FAILURE_GEN;
+
+		SEARCH_LOOP_END:
 			DestroyString(&directoryName);
 			DestroyString(&directoryPath);
-		}
-	} while (FindNextFile(hFind, &findData));
 
-	// Free all temporary allocated memory and return found directories
-CLEANUP:
+			if (status != M_SUCCESS) goto FAILURE;
+		}
+	} while (FindNextFileW(hFind, &findData));
+
+	int status = M_SUCCESS;
+	goto SUCCESSFUL;
+
+FAILURE:
+	status = M_FAILURE_GEN;
+
+SUCCESSFUL:
+	FindClose(hFind);
 	DestroyString(&searchPath);
 	DestroyString(&parentPath);
-	return directories;
+
+	return status;
+}
+
+static int FindAllDirectories(Vector* directories)
+{
+	wchar_t* wideWorkingDir = _wgetcwd(NULL, 0);
+	char workingDir[MAX_PATH * 4];
+	if (WideToUTF8(wideWorkingDir, workingDir, sizeof(workingDir)) != M_SUCCESS)
+	{
+		free(wideWorkingDir);
+		return M_FAILURE_GEN;
+	}
+	free(wideWorkingDir);
+
+	String startPath = CreateString(workingDir);
+	if (startPath.data == NULL) return M_FAILURE_GEN;
+
+	Directory startDirectory = CreateDirectoryWrapper(&startPath, &startPath);
+
+	Vector searchDirs = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
+	if (searchDirs.itemSize == 0) goto FAILURE;
+	if (VectorPushBack(&searchDirs, &startDirectory, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto FAILURE;
+
+	do
+	{
+		Directory* search = VectorGetElementLast(&searchDirs);
+		if (search == NULL) continue;
+		const String* searchPath = &search->path;
+
+		Vector foundDirs = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
+		if (foundDirs.itemSize == 0) goto BREAK_SEARCH;
+
+		if (GetAllDirectoriesInDir(searchPath, &foundDirs) != M_SUCCESS) goto BREAK_SEARCH;
+		if (VectorPopBack(&searchDirs) != M_SUCCESS) goto BREAK_SEARCH;
+
+		if (foundDirs.length > 0)
+		{
+			if (VectorInsertRangeAt(&searchDirs, searchDirs.length, &foundDirs, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
+			if (VectorInsertRangeAt(directories, directories->length, &foundDirs, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
+		}
+
+		DestroyVector(&foundDirs);
+		continue;
+
+	BREAK_SEARCH:
+		if (foundDirs.itemSize == 0) foundDirs.itemSize = sizeof(Directory);
+		DestroyVector(&foundDirs);
+		goto FAILURE;
+	} while (searchDirs.length > 0);
+
+	int status = M_SUCCESS;
+	goto SUCCESSFUL;
+
+FAILURE:
+	status = M_FAILURE_GEN;
+	if (searchDirs.itemSize == 0) searchDirs.itemSize = sizeof(Directory);
+
+SUCCESSFUL:
+	DestroyString(&startPath);
+	DestroyDirectory(&startDirectory);
+	DestroyVector(&searchDirs);
+
+	return status;
+}
+
+int FindAllDirectoriesByQuery(const String* query)
+{
+	if (query == NULL) return M_FAILURE_GEN;
+
+	struct timespec start, end;
+	if (timespec_get(&start, TIME_UTC) == 0) return M_FAILURE_GEN;
+
+	printf("Finding all directories with names containing \"");
+	PrintString(query);
+	printf("\" in the current working directory...\n\n");
+
+	Vector directories = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
+	if (directories.itemSize == 0) goto FAILURE;
+	
+	if (FindAllDirectories(&directories) != M_SUCCESS) goto FAILURE;
+	if (FilterDirectories(&directories, query) != M_SUCCESS) goto FAILURE;
+
+	PrintDirectories(&directories);
+
+	DestroyVector(&directories);
+
+	if (timespec_get(&end, TIME_UTC) != 0)
+	{
+		double timeSpent = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
+		printf("\nSearch took %f seconds\n", timeSpent);
+	}
+	else
+	{
+		printf("\nAn error occured and the search time could not be determined\n");
+	}
+
+	return M_SUCCESS;
+
+FAILURE:
+	if (directories.itemSize == 0) directories.itemSize = sizeof(Directory);
+	DestroyVector(&directories);
+
+	return M_FAILURE_GEN;
 }

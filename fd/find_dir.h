@@ -4,7 +4,6 @@
 #include "../include/m_string.h"
 #include "../include/m_vector.h"
 
-void FindAllDirectoriesByQuery(const String* query);
-Vector* GetAllDirectoriesInDir(const String* path);
+int FindAllDirectoriesByQuery(const String* query);
 
 #endif
