@@ -82,6 +82,19 @@ int ClearString(String* s)
 	return M_SUCCESS;
 }
 
+int ZeroString(void* s)
+{
+	if (s == NULL) return M_FAILURE_GEN;
+
+	String* sPtr = (String*)s;
+
+	sPtr->data = NULL;
+	sPtr->length = 0;
+	sPtr->capacity = 0;
+
+	return M_SUCCESS;
+}
+
 int MoveString(String* dest, String* source)
 {
 	if (dest == NULL || source == NULL) return M_FAILURE_GEN;

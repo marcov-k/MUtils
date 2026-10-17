@@ -87,6 +87,8 @@ String CreateString(const char s[]);
 int DestroyString(void* s);
 // Clear the data of a String
 int ClearString(String* s);
+// Zeroes the memory of the String - DOES NOT FREE HEAP MEMORY
+int ZeroString(void* s);
 // Move data from one String to another
 // Destroys the source String when successful
 // No-op if destination and source are the same String

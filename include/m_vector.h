@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 typedef int (*Destructor)(void*);
+typedef int (*Zeroer)(void*);
 typedef int (*Copier)(void*, const void*);
 typedef bool (*Comparer)(const void*, const void*);
 
@@ -97,6 +98,8 @@ Vector CreateVector(const void* data, size_t length, size_t itemSize, Destructor
 int DestroyVector(void* v);
 // Clear the data of a Vector
 int ClearVector(Vector* v);
+// Zeroes the memory of the Vector - DOES NOT FREE HEAP MEMORY
+int ZeroVector(void* v);
 // Move data from one Vector to another
 // Always performs a shallow copy of the data
 // Destroys the source Vector when successful
@@ -127,15 +130,15 @@ int VectorSetElementFirst(Vector* v, const void* item, Copier copier);
 int VectorSetElementLast(Vector* v, const void* item, Copier copier);
 
 // Prepend an element to the start of a Vector
-int VectorPushFront(Vector* v, const void* item, Copier copier);
+int VectorPushFront(Vector* v, const void* item, Zeroer zeroer, Copier copier);
 // Append an element to the end of a Vector
-int VectorPushBack(Vector* v, const void* item, Copier copier);
+int VectorPushBack(Vector* v, const void* item, Zeroer zeroer, Copier copier);
 // Insert an element at a given index in a Vector
-int VectorInsertAt(Vector* v, size_t index, const void* item, Copier copier);
+int VectorInsertAt(Vector* v, size_t index, const void* item, Zeroer zeroer, Copier copier);
 // Insert a Vector at a given index in another Vector
-int VectorInsertRangeAt(Vector* v, size_t index, const Vector* insert, Copier copier);
+int VectorInsertRangeAt(Vector* v, size_t index, const Vector* insert, Zeroer zeroer, Copier copier);
 // Insert a C-array at a given index in a Vector
-int VectorInsertArrayAt(Vector* v, size_t index, const void* insert, size_t insertLen, Copier copier);
+int VectorInsertArrayAt(Vector* v, size_t index, const void* insert, size_t insertLen, Zeroer zeroer, Copier copier);
 
 // Check whether two Vectors are equal
 bool VectorsEqual(const void* v1, const void* v2, Comparer comparer);

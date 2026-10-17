@@ -106,6 +106,21 @@ int ClearVector(Vector* v)
 	return M_SUCCESS;
 }
 
+int ZeroVector(void* v)
+{
+	if (v == NULL) return M_FAILURE_GEN;
+
+	Vector* vPtr = (Vector*)v;
+
+	vPtr->data = NULL;
+	vPtr->destructor = NULL;
+	vPtr->itemSize = 0;
+	vPtr->length = 0;
+	vPtr->capacity = 0;
+
+	return M_SUCCESS;
+}
+
 int MoveVector(Vector* dest, Vector* source)
 {
 	if (dest == NULL || source == NULL || source->itemSize == 0) return M_FAILURE_GEN;
@@ -323,7 +338,7 @@ int VectorSetElementLast(Vector* v, const void* item, Copier copier)
 	return M_SUCCESS;
 }
 
-int VectorPushFront(Vector* v, const void* item, Copier copier)
+int VectorPushFront(Vector* v, const void* item, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0 || item == NULL) return M_FAILURE_GEN;
 
@@ -339,6 +354,7 @@ int VectorPushFront(Vector* v, const void* item, Copier copier)
 	}
 	else
 	{
+		if (zeroer != NULL && zeroer(v->data) != M_SUCCESS) return M_FAILURE_GEN;
 		if (copier(v->data, item) != M_SUCCESS) return M_FAILURE_GEN;
 	}
 	v->length++;
@@ -346,7 +362,7 @@ int VectorPushFront(Vector* v, const void* item, Copier copier)
 	return M_SUCCESS;
 }
 
-int VectorPushBack(Vector* v, const void* item, Copier copier)
+int VectorPushBack(Vector* v, const void* item, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0 || item == NULL) return M_FAILURE_GEN;
 
@@ -360,6 +376,7 @@ int VectorPushBack(Vector* v, const void* item, Copier copier)
 	}
 	else
 	{
+		if (zeroer != NULL && zeroer(vPtr) != M_SUCCESS) return M_FAILURE_GEN;
 		if (copier(vPtr, item) != M_SUCCESS) return M_FAILURE_GEN;
 	}
 	v->length++;
@@ -367,7 +384,7 @@ int VectorPushBack(Vector* v, const void* item, Copier copier)
 	return M_SUCCESS;
 }
 
-int VectorInsertAt(Vector* v, size_t index, const void* item, Copier copier)
+int VectorInsertAt(Vector* v, size_t index, const void* item, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0 || item == NULL) return M_FAILURE_GEN;
 	if (index > v->length) return M_FAILURE_GEN;
@@ -386,6 +403,7 @@ int VectorInsertAt(Vector* v, size_t index, const void* item, Copier copier)
 	}
 	else
 	{
+		if (zeroer != NULL && zeroer(vPtr) != M_SUCCESS) return M_FAILURE_GEN;
 		if (copier(vPtr, item) != M_SUCCESS) return M_FAILURE_GEN;
 	}
 	v->length++;
@@ -393,7 +411,7 @@ int VectorInsertAt(Vector* v, size_t index, const void* item, Copier copier)
 	return M_SUCCESS;
 }
 
-static int InsertCArrAt(Vector* v, size_t index, const void* insert, size_t insertLen, Copier copier)
+static int InsertCArrAt(Vector* v, size_t index, const void* insert, size_t insertLen, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0) return M_FAILURE_GEN;
 	if (insert == NULL || insertLen == 0) return M_SUCCESS;
@@ -418,6 +436,8 @@ static int InsertCArrAt(Vector* v, size_t index, const void* insert, size_t inse
 			size_t dataIndex = i * v->itemSize;
 			void* destPtr = (char*)vPtr + dataIndex;
 			void* sourcePtr = (char*)insert + dataIndex;
+
+			if (zeroer != NULL && zeroer(destPtr) != M_SUCCESS) return M_FAILURE_GEN;
 			if (copier(destPtr, sourcePtr) != M_SUCCESS) return M_FAILURE_GEN;
 		}
 	}
@@ -426,18 +446,18 @@ static int InsertCArrAt(Vector* v, size_t index, const void* insert, size_t inse
 	return M_SUCCESS;
 }
 
-int VectorInsertRangeAt(Vector* v, size_t index, const Vector* insert, Copier copier)
+int VectorInsertRangeAt(Vector* v, size_t index, const Vector* insert, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0 || insert == NULL || insert->itemSize != v->itemSize) return M_FAILURE_GEN;
 
-	return InsertCArrAt(v, index, insert->data, insert->length, copier);
+	return InsertCArrAt(v, index, insert->data, insert->length, zeroer, copier);
 }
 
-int VectorInsertArrayAt(Vector* v, size_t index, const void* insert, size_t insertLen, Copier copier)
+int VectorInsertArrayAt(Vector* v, size_t index, const void* insert, size_t insertLen, Zeroer zeroer, Copier copier)
 {
 	if (v == NULL || v->itemSize == 0 || insert == NULL) return M_FAILURE_GEN;
 
-	return InsertCArrAt(v, index, insert, insertLen, copier);
+	return InsertCArrAt(v, index, insert, insertLen, zeroer, copier);
 }
 
 bool VectorsEqual(const void* v1, const void* v2, Comparer comparer)

@@ -70,7 +70,7 @@ int main()
 	}
 
 	newVal = 150;
-	VectorPushBack(&v, &newVal, NULL);
+	VectorPushBack(&v, &newVal, NULL, NULL);
 	printf("\n\nAppended %d to original vector: ", newVal);
 	for (size_t i = 0; i < v.length; ++i)
 	{
