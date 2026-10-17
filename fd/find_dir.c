@@ -79,7 +79,7 @@ static void PrintDirectories(const Vector* directories)
 {
 	if (directories->length == 0)
 	{
-		printf("No directories found.\n");
+		printf("No directories found matching the query.\n");
 		return;
 	}
 
@@ -224,7 +224,14 @@ static int FindAllDirectories(Vector* directories)
 	do
 	{
 		Directory* search = VectorGetElementLast(&searchDirs);
-		if (search == NULL) continue;
+		if (search == NULL)
+		{
+			Destructor destructorTemp = searchDirs.destructor;
+			searchDirs.destructor = NULL;
+			VectorPopBack(&searchDirs);
+			searchDirs.destructor = destructorTemp;
+			continue;
+		}
 		const String* searchPath = &search->path;
 
 		Vector foundDirs = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
