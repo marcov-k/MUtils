@@ -36,6 +36,8 @@ int main(int argc, char* argv[])
 		if (FindAllDirectoriesByQuery(&query) != M_SUCCESS)
 		{
 			printf("An error occured while searching directories\n");
+			DestroyString(&query);
+			return 1;
 		}
 		DestroyString(&query);
 	}
