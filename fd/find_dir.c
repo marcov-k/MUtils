@@ -59,22 +59,6 @@ static int CopyDirectoryTo(void* dest, const void* source)
 	return M_SUCCESS;
 }
 
-static int FilterDirectories(Vector* directories, const String* query)
-{
-	for (size_t i = 0; i < directories->length; ++i)
-	{
-		const Directory* dir = VectorGetElementAt(directories, i);
-		if (dir == NULL) continue;
-
-		if (!StringContainsSubstring(&dir->name, query))
-		{
-			if (VectorRemoveAt(directories, i--) != M_SUCCESS) return M_FAILURE_GEN;
-		}
-	}
-
-	return M_SUCCESS;
-}
-
 static void PrintDirectories(const Vector* directories)
 {
 	if (directories->length == 0)
@@ -201,7 +185,7 @@ SUCCESSFUL:
 	return status;
 }
 
-static int FindAllDirectories(Vector* directories)
+static int FindAllDirectories(Vector* directories, const String* query)
 {
 	wchar_t* wideWorkingDir = _wgetcwd(NULL, 0);
 	char workingDir[MAX_PATH * 4];
@@ -223,7 +207,7 @@ static int FindAllDirectories(Vector* directories)
 
 	do
 	{
-		Directory* search = VectorGetElementLast(&searchDirs);
+		const Directory* search = VectorGetElementLast(&searchDirs);
 		if (search == NULL)
 		{
 			Destructor destructorTemp = searchDirs.destructor;
@@ -243,7 +227,24 @@ static int FindAllDirectories(Vector* directories)
 		if (foundDirs.length > 0)
 		{
 			if (VectorInsertRangeAt(&searchDirs, searchDirs.length, &foundDirs, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
-			if (VectorInsertRangeAt(directories, directories->length, &foundDirs, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
+
+			if (query->length == 0)
+			{
+				if (VectorInsertRangeAt(directories, directories->length, &foundDirs, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
+			}
+			else
+			{
+				for (size_t i = 0; i < foundDirs.length; ++i)
+				{
+					const Directory* dir = VectorGetElementAt(&foundDirs, i);
+					if (dir == NULL) continue;
+
+					if (StringContainsSubstring(&dir->name, query))
+					{
+						if (VectorPushBack(directories, dir, ZeroDirectory, CopyDirectoryTo) != M_SUCCESS) goto BREAK_SEARCH;
+					}
+				}
+			}
 		}
 
 		DestroyVector(&foundDirs);
@@ -283,9 +284,8 @@ int FindAllDirectoriesByQuery(const String* query)
 
 	Vector directories = CreateVector(NULL, 0, sizeof(Directory), DestroyDirectory, NULL);
 	if (directories.itemSize == 0) goto FAILURE;
-	
-	if (FindAllDirectories(&directories) != M_SUCCESS) goto FAILURE;
-	if (FilterDirectories(&directories, query) != M_SUCCESS) goto FAILURE;
+
+	if (FindAllDirectories(&directories, query) != M_SUCCESS) goto FAILURE;
 
 	PrintDirectories(&directories);
 
