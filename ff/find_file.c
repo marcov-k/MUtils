@@ -86,7 +86,10 @@ static void PrintFiles(const Vector* files)
 
 static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 {
-	if (path == NULL || files == NULL) return M_FAILURE_GEN;
+	if (path == NULL || files == NULL || directories == NULL) return M_FAILURE_GEN;
+
+	int status = M_SUCCESS;
+	HANDLE hFind = INVALID_HANDLE_VALUE;
 
 	String searchPath = CopyString(path);
 	if (searchPath.data == NULL) return M_FAILURE_GEN;
@@ -109,7 +112,7 @@ static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 	wchar_t* wideSearchPath = UTF8ToWide(searchPath.data);
 	if (wideSearchPath == NULL) goto FAILURE;
 
-	HANDLE hFind = FindFirstFileW(wideSearchPath, &findData);
+	hFind = FindFirstFileW(wideSearchPath, &findData);
 	free(wideSearchPath);
 	if (hFind == INVALID_HANDLE_VALUE)
 	{
@@ -128,7 +131,7 @@ static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 	{
 		if (findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) continue;
 
-		int status = M_SUCCESS;
+		int loopStatus = M_SUCCESS;
 
 		char nameUtf8[MAX_PATH * 4];
 		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
@@ -152,11 +155,11 @@ static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 			DestroyString(directoryPath);
 
 		DIR_PATH_FAILURE:
-			free(directoryPath);
-			status = M_FAILURE_GEN;
+			loopStatus = M_FAILURE_GEN;
 
 		DIR_LOOP_END:
-			if (status != M_SUCCESS) goto FAILURE;
+			free(directoryPath);
+			if (loopStatus != M_SUCCESS) goto FAILURE;
 		}
 		else
 		{
@@ -181,24 +184,23 @@ static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 			goto FILE_LOOP_END;
 
 		FILE_FAILURE:
-			status = M_FAILURE_GEN;
+			loopStatus = M_FAILURE_GEN;
 
 		FILE_LOOP_END:
 			DestroyString(&fileName);
 			DestroyString(&filePath);
 
-			if (status != M_SUCCESS) goto FAILURE;
+			if (loopStatus != M_SUCCESS) goto FAILURE;
 		}
 	} while (FindNextFileW(hFind, &findData));
 
-	int status = M_SUCCESS;
 	goto CLEANUP;
 
 FAILURE:
 	status = M_FAILURE_GEN;
 
 CLEANUP:
-	FindClose(hFind);
+	if (hFind != INVALID_HANDLE_VALUE) FindClose(hFind);
 	DestroyString(&searchPath);
 	DestroyString(&parentPath);
 
@@ -207,7 +209,12 @@ CLEANUP:
 
 static int FindAllFiles(Vector* files, const String* query)
 {
+	if (files == NULL || query == NULL) return M_FAILURE_GEN;
+
+	int status = M_SUCCESS;
+
 	wchar_t* wideWorkingDir = _wgetcwd(NULL, 0);
+	if (wideWorkingDir == NULL) return M_FAILURE_GEN;
 	char workingDir[MAX_PATH * 4];
 	if (WideToUTF8(wideWorkingDir, workingDir, sizeof(workingDir)) != M_SUCCESS)
 	{
@@ -280,7 +287,6 @@ static int FindAllFiles(Vector* files, const String* query)
 		goto FAILURE;
 	} while (searchDirs.length > 0);
 
-	int status = M_SUCCESS;
 	goto CLEANUP;
 
 FAILURE:
@@ -321,7 +327,7 @@ int FindAllFilesByQuery(const String* query)
 	}
 	else
 	{
-		printf("\nAn error occured and the search time could not be determined\n");
+		printf("\nAn error occurred and the search time could not be determined\n");
 	}
 
 	return M_SUCCESS;

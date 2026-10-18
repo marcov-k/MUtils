@@ -1,5 +1,5 @@
-#ifndef M_FIND_DIR
-#define M_FIND_DIR
+#ifndef M_FIND_DIR_H
+#define M_FIND_DIR_H
 
 #include "../include/m_string.h"
 

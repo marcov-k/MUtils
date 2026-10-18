@@ -3,6 +3,7 @@
 
 #include "fd/find_dir.h"
 #include "ff/find_file.h"
+#include "ci/count_items.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 
 #define FIND_DIR "fd"
 #define FIND_FILE "ff"
+#define COUNT_ITEMS "ci"
 
 int main(int argc, char* argv[])
 {
@@ -29,7 +31,7 @@ int main(int argc, char* argv[])
 
 		if (query.data == NULL || FindAllDirectoriesByQuery(&query) != M_SUCCESS)
 		{
-			printf("An error occured while searching directories\n");
+			printf("An error occurred while searching directories\n");
 			DestroyString(&query);
 			return 1;
 		}
@@ -43,11 +45,19 @@ int main(int argc, char* argv[])
 
 		if (query.data == NULL || FindAllFilesByQuery(&query) != M_SUCCESS)
 		{
-			printf("An error occured while searching files\n");
+			printf("An error occurred while searching files\n");
 			DestroyString(&query);
 			return 1;
 		}
 		DestroyString(&query);
+	}
+	else if (strcmp(argv[1], COUNT_ITEMS) == 0) // 'count items' command
+	{
+		if (CountItemsInDirectory() != M_SUCCESS)
+		{
+			printf("An error occurred while counting items\n");
+			return 1;
+		}
 	}
 	else
 	{
