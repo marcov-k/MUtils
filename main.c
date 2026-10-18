@@ -24,18 +24,26 @@ int main(int argc, char* argv[])
 	if (strcmp(argv[1], FIND_DIR) == 0) // 'find directory' command
 	{
 		String query;
-		if (argc < 3)
-		{
-			query = CreateString("");
-		}
-		else
-		{
-			query = CreateString(argv[2]);
-		}
+		if (argc < 3) query = CreateString("");
+		else query = CreateString(argv[2]);
 
-		if (FindAllDirectoriesByQuery(&query) != M_SUCCESS)
+		if (query.data == NULL || FindAllDirectoriesByQuery(&query) != M_SUCCESS)
 		{
 			printf("An error occured while searching directories\n");
+			DestroyString(&query);
+			return 1;
+		}
+		DestroyString(&query);
+	}
+	else if (strcmp(argv[1], FIND_FILE) == 0) // 'find file' command
+	{
+		String query;
+		if (argc < 3) query = CreateString("");
+		else query = CreateString(argv[2]);
+
+		if (query.data == NULL || FindAllFilesByQuery(&query) != M_SUCCESS)
+		{
+			printf("An error occured while searching files\n");
 			DestroyString(&query);
 			return 1;
 		}

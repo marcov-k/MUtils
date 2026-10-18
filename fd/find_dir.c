@@ -16,7 +16,7 @@ typedef struct
 	String path;
 } Directory;
 
-static Directory CreateDirectoryWrapper(String* name, String* path)
+static Directory CreateDirectoryWrapper(const String* name, const String* path)
 {
 	Directory directory = { CopyString(name), CopyString(path) };
 	return directory;
@@ -51,7 +51,7 @@ static int CopyDirectoryTo(void* dest, const void* source)
 	if (dest == NULL || source == NULL) return M_FAILURE_GEN;
 
 	Directory* destPtr = (Directory*)dest;
-	Directory* sourcePtr = (Directory*)source;
+	const Directory* sourcePtr = (Directory*)source;
 
 	if (CopyStringTo(&destPtr->name, &sourcePtr->name) != M_SUCCESS) return M_FAILURE_GEN;
 	if (CopyStringTo(&destPtr->path, &sourcePtr->path) != M_SUCCESS) return M_FAILURE_GEN;
@@ -172,12 +172,12 @@ static int GetAllDirectoriesInDir(const String* path, Vector* directories)
 	} while (FindNextFileW(hFind, &findData));
 
 	int status = M_SUCCESS;
-	goto SUCCESSFUL;
+	goto CLEANUP;
 
 FAILURE:
 	status = M_FAILURE_GEN;
 
-SUCCESSFUL:
+CLEANUP:
 	FindClose(hFind);
 	DestroyString(&searchPath);
 	DestroyString(&parentPath);
@@ -257,13 +257,13 @@ static int FindAllDirectories(Vector* directories, const String* query)
 	} while (searchDirs.length > 0);
 
 	int status = M_SUCCESS;
-	goto SUCCESSFUL;
+	goto CLEANUP;
 
 FAILURE:
 	status = M_FAILURE_GEN;
 	if (searchDirs.itemSize == 0) searchDirs.itemSize = sizeof(Directory);
 
-SUCCESSFUL:
+CLEANUP:
 	DestroyString(&startPath);
 	DestroyDirectory(&startDirectory);
 	DestroyVector(&searchDirs);
