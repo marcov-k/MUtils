@@ -149,14 +149,10 @@ static int GetAllDirectoriesInDir(const String* path, Vector* directories)
 			if (directoryName.data == NULL || directoryPath.data == NULL) goto BREAK_SEARCH_LOOP;
 			if (StringAppendCStr(&directoryPath, nameUtf8) != M_SUCCESS) goto BREAK_SEARCH_LOOP;
 
-			// Add directory to found directories
-			Directory* directory = malloc(sizeof(Directory));
-			if (directory == NULL) goto BREAK_SEARCH_LOOP;
-
-			*directory = CreateDirectoryWrapper(&directoryName, &directoryPath);
-			if (VectorPushBack(directories, directory, NULL, NULL) != M_SUCCESS)
+			Directory directory = CreateDirectoryWrapper(&directoryName, &directoryPath);
+			if (VectorPushBack(directories, &directory, NULL, NULL) != M_SUCCESS)
 			{
-				DestroyDirectory(directory);
+				DestroyDirectory(&directory);
 				goto BREAK_SEARCH_LOOP;
 			}
 
@@ -168,7 +164,6 @@ static int GetAllDirectoriesInDir(const String* path, Vector* directories)
 		SEARCH_LOOP_END:
 			DestroyString(&directoryName);
 			DestroyString(&directoryPath);
-			free(directory);
 
 			if (loopStatus != M_SUCCESS) goto FAILURE;
 		}

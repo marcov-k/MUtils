@@ -139,26 +139,22 @@ static int ScanDirectory(const String* path, Vector* files, Vector* directories)
 			if (wcscmp(findData.cFileName, L".") == 0 || wcscmp(findData.cFileName, L"..") == 0) continue;
 
 			if (WideToUTF8(findData.cFileName, nameUtf8, sizeof(nameUtf8)) != M_SUCCESS) continue;
-
-			String* directoryPath = malloc(sizeof(String));
-			if (directoryPath == NULL) goto FAILURE;
 			
-			*directoryPath = CopyString(&parentPath);
-			if (directoryPath->data == NULL) goto DIR_PATH_FAILURE;
-			if (StringAppendCStr(directoryPath, nameUtf8) != M_SUCCESS) goto DIR_FAILURE;
+			String directoryPath = CopyString(&parentPath);
+			if (directoryPath.data == NULL) goto FAILURE;
+			if (StringAppendCStr(&directoryPath, nameUtf8) != M_SUCCESS) goto DIR_FAILURE;
 
-			if (VectorPushBack(directories, directoryPath, NULL, NULL) != M_SUCCESS) goto DIR_FAILURE;
+			if (VectorPushBack(directories, &directoryPath, NULL, NULL) != M_SUCCESS) goto DIR_FAILURE;
 
 			goto DIR_LOOP_END;
 
 		DIR_FAILURE:
-			DestroyString(directoryPath);
+			DestroyString(&directoryPath);
 
 		DIR_PATH_FAILURE:
 			loopStatus = M_FAILURE_GEN;
 
 		DIR_LOOP_END:
-			free(directoryPath);
 			if (loopStatus != M_SUCCESS) goto FAILURE;
 		}
 		else
